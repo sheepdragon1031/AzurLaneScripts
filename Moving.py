@@ -1,6 +1,10 @@
 # -*- coding: utf-8 -*-
 import cv2
 import numpy as np
+import imutils
+import cv2
+import argparse
+
 def findPic(img_bg_path, img_slider_path):
     """
     找出图像中最佳匹配位置
@@ -56,68 +60,140 @@ def findPic(img_bg_path, img_slider_path):
 
 
 def template_matching(screenshot, template):
-    image_path = 'resource/image/'
-    image = screenshot.copy()
-    template = cv2.imread(image_path + template)
-
-    # Resize images
-    image = cv2.resize(image, (0,0), fx=0.5, fy=0.5)
-    template = cv2.resize(template, (0,0), fx=0.5, fy=0.5)
-    
-    # Convert to grayscale
-    imageGray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    templateGray = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
-    
-    # Find template
-    result = cv2.matchTemplate(imageGray,templateGray, cv2.TM_CCOEFF)
-    min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
-    top_left = max_loc
-    h,w = templateGray.shape
-    bottom_right = (top_left[0] + w, top_left[1] + h)
-    cv2.rectangle(image,top_left, bottom_right,(0,0,255),4)
-    pos = (top_left[0] + w, top_left[1] + h)
-    # Show result
-    cv2.imshow("Result", image)
-    cv2.imshow("Template", template) 
-    cv2.moveWindow("Template", 10, 50)
-    cv2.moveWindow("Result", 150, 50)
-
-    print(top_left)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
-    cv2.waitKey(1)
-    # mid_air = cv2.imread(image_path + template, 0)
-    # h, w = mid_air.shape[:2]
-    # methods = ['cv2.TM_CCORR_NORMED']
-    # # ,'cv2.TM_CCOEFF', 'cv2.TM_CCOEFF_NORMED', 'cv2.TM_CCORR', 'cv2.TM_SQDIFF', 'cv2.TM_SQDIFF_NORMED'
-    # img_Gray = cv2.cvtColor(screenshot, cv2.COLOR_BGR2GRAY)
-    # cv2.imshow('meth', mid_air)
-    # for meth in methods:
-    #     method = eval(meth)
-    #     img = img_Gray.copy()
-    #     result = cv2.matchTemplate(img, mid_air, method)
-        
-    #     min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
-    #     strmin_val = str(min_val)
-    #     print("匹配度：" + strmin_val)
-    #     print( (min_loc[0] * 2 + w)  , (min_loc[1] * 2 + h) )
-    #     cv2.rectangle(screenshot, min_loc, (min_loc[0] + w, min_loc[1] + h), (0, 0, 255))
-        
-    #     pos = (min_loc[0] + w / 2, min_loc[1] + h / 2)
-        
-    cv2.imshow('meth', screenshot)
-    cv2.waitKey()
-    cv2.destroyAllWindows()
-    # threshold = 0.8
-    # loc = np.where( result >= threshold)
-    # for pt in zip(*loc[::-1]):
-    #     cv2.rectangle(screenshot, pt, (pt[0] + w, pt[1] + h), (0,0,255), 2)
-
    
-    # cv2.imshow("mid_air", mid_air)
+    image_path = 'resource/image/'
+    template = cv2.imread(image_path + template)
     
-    return pos, min_val
+    # load the image image, convert it to grayscale, and detect edges
+    template = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
+    template = cv2.Canny(template, 50, 200)
+    (tH, tW) = template.shape[:2]
+    # cv2.imshow("Template", template)
+    # cv2.waitKey()
+    
+    # loop over the images to find the template in
+    
 
+    # for imagePath in glob.glob(args["images"] + "/*.jpg"):
+    # imagePath = screenshot.copy()
+        # load the image, convert it to grayscale, and initialize the
+        # bookkeeping variable to keep track of the matched region
+    # image = cv2.imread(imagePath)
+   
+    image = screenshot.copy()
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    found = None
+
+    # loop over the scales of the image
+    for scale in np.linspace(0.2, 1.0, 20)[::-1]:
+        # resize the image according to the scale, and keep track
+        # of the ratio of the resizing
+        resized = imutils.resize(gray, width = int(gray.shape[1] * scale))
+        r = gray.shape[1] / float(resized.shape[1])
+
+        # if the resized image is smaller than the template, then break
+        # from the loop
+        if resized.shape[0] < tH or resized.shape[1] < tW:
+            break
+
+        # detect edges in the resized, grayscale image and apply template
+        # matching to find the template in the image
+        edged = cv2.Canny(resized, 50, 200)
+        result = cv2.matchTemplate(edged, template, cv2.TM_CCOEFF)
+        (_, maxVal, _, maxLoc) = cv2.minMaxLoc(result)
+
+       
+        # if we have found a new maximum correlation value, then ipdate
+        # the bookkeeping variable
+        if found is None or maxVal > found[0]:
+            found = (maxVal, maxLoc, r)
+
+        # unpack the bookkeeping varaible and compute the (x, y) coordinates
+        # of the bounding box based on the resized ratio
+        (_, maxLoc, r) = found
+        (startX, startY) = (int(maxLoc[0] * r), int(maxLoc[1] * r))
+        (endX, endY) = (int((maxLoc[0] + tW) * r), int((maxLoc[1] + tH) * r))
+
+        # draw a bounding box around the detected result and display the image
+    cv2.rectangle(image, (startX, startY), (endX, endY), (0, 0, 255), 2)
+    pos = ( (startX + endX) / 2, (startY + endY) / 2)
+    # cv2.imshow("Image", image)
+    # cv2.imwrite("Image.jpg", image)
+    # cv2.waitKey()
+        
+    return pos, maxLoc
+
+def autoFing(screenshot, template):
+    Dlist = []
+    image_path = 'resource/image/'
+    template = cv2.imread(image_path + template)
+    
+    # load the image image, convert it to grayscale, and detect edges
+    template = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
+    template = cv2.Canny(template, 50, 200)
+    (tH, tW) = template.shape[:2]
+    # cv2.imshow("Template", template)
+    # cv2.waitKey()
+    
+    # loop over the images to find the template in
+    
+
+    # for imagePath in glob.glob(args["images"] + "/*.jpg"):
+    # imagePath = screenshot.copy()
+        # load the image, convert it to grayscale, and initialize the
+        # bookkeeping variable to keep track of the matched region
+    # image = cv2.imread(imagePath)
+   
+    image = screenshot.copy()
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    found = None
+
+    # loop over the scales of the image
+    for scale in np.linspace(0.5, 1.5, 20)[::-1]:
+        # resize the image according to the scale, and keep track
+        # of the ratio of the resizing
+        resized = imutils.resize(gray, width = int(gray.shape[1] * scale))
+        r = gray.shape[1] / float(resized.shape[1])
+
+        # if the resized image is smaller than the template, then break
+        # from the loop
+        if resized.shape[0] < tH or resized.shape[1] < tW:
+            break
+
+        # detect edges in the resized, grayscale image and apply template
+        # matching to find the template in the image
+        edged = cv2.Canny(resized, 50, 200)
+        result = cv2.matchTemplate(edged, template, cv2.TM_CCOEFF)
+        (_, maxVal, _, maxLoc) = cv2.minMaxLoc(result)
+
+       
+        # if we have found a new maximum correlation value, then ipdate
+        # the bookkeeping variable
+        if found is None or maxVal > found[0]:
+            found = (maxVal, maxLoc, r)
+
+        # unpack the bookkeeping varaible and compute the (x, y) coordinates
+        # of the bounding box based on the resized ratio
+        (_, maxLoc, r) = found
+        (startX, startY) = (int(maxLoc[0] * r), int(maxLoc[1] * r))
+        (endX, endY) = (int((maxLoc[0] + tW) * r), int((maxLoc[1] + tH) * r))
+
+        if maxVal > (tH * tW) * (IH/tH) * (IW/tW) * 10:
+		Dlist.append((startX, startY, endX, endY))
+
+        # draw a bounding box around the detected result and display the image
+    # cv2.rectangle(image, (startX, startY), (endX, endY), (0, 0, 255), 2)
+    # pos = ( (startX + endX) / 2, (startY + endY) / 2)
+    Dresult = Counter(Dlist)
+    Dget = Dresult.most_common()
+    for Dout in Dget:
+        xy = Dout[0]
+        if Dout[1] > 1:
+            cv2.rectangle(image, (xy[0] , xy[1]), (xy[2] , xy[3]), (0, 255, 0), 2)
+        elif len(Dget) == 1:
+            cv2.rectangle(image, (xy[0] , xy[1]), (xy[2] , xy[3]), (0, 255, 0), 2)
+    one = Dget[0]
+    return ( (one[0] + one[2]) * 0.5, (one[1] + one[3]) * 0.5), maxLoc
 
 def find_enemy(screenshot):
     pos, val = template_matching(screenshot, 'boss.png')

@@ -41,7 +41,7 @@ def pull_screenshot():
     elif SCREENSHOT_WAY == 0:
         adb.run('shell screencap -p /sdcard/azurlane.jpg')
         adb.run('pull /sdcard/azurlane.jpg .')
-        return Image.open('./azurlane.jpg').resize((1280, 640))
+        return Image.open('./azurlane.jpg') #.resize((1280, 640))
 
 
 def check_screenshot():
