@@ -4,6 +4,7 @@ import numpy as np
 import imutils
 import cv2
 import argparse
+from collections import Counter
 
 def findPic(img_bg_path, img_slider_path):
     """
@@ -132,8 +133,6 @@ def autoFing(screenshot, template):
     template = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
     template = cv2.Canny(template, 50, 200)
     (tH, tW) = template.shape[:2]
-    # cv2.imshow("Template", template)
-    # cv2.waitKey()
     
     # loop over the images to find the template in
     
@@ -145,11 +144,12 @@ def autoFing(screenshot, template):
     # image = cv2.imread(imagePath)
    
     image = screenshot.copy()
+    (IH, IW) = image.shape[:2]
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     found = None
 
     # loop over the scales of the image
-    for scale in np.linspace(0.5, 1.5, 20)[::-1]:
+    for scale in np.linspace(0.2, 1.2, 20)[::-1]:
         # resize the image according to the scale, and keep track
         # of the ratio of the resizing
         resized = imutils.resize(gray, width = int(gray.shape[1] * scale))
@@ -177,23 +177,33 @@ def autoFing(screenshot, template):
         (_, maxLoc, r) = found
         (startX, startY) = (int(maxLoc[0] * r), int(maxLoc[1] * r))
         (endX, endY) = (int((maxLoc[0] + tW) * r), int((maxLoc[1] + tH) * r))
-
+        # print(maxVal > (tH * tW) * (IH/tH) * (IW/tW) * 10)
         if maxVal > (tH * tW) * (IH/tH) * (IW/tW) * 10:
-		Dlist.append((startX, startY, endX, endY))
+            Dlist.append((startX, startY, endX, endY))
 
         # draw a bounding box around the detected result and display the image
     # cv2.rectangle(image, (startX, startY), (endX, endY), (0, 0, 255), 2)
     # pos = ( (startX + endX) / 2, (startY + endY) / 2)
+    
     Dresult = Counter(Dlist)
     Dget = Dresult.most_common()
+    
     for Dout in Dget:
         xy = Dout[0]
         if Dout[1] > 1:
             cv2.rectangle(image, (xy[0] , xy[1]), (xy[2] , xy[3]), (0, 255, 0), 2)
         elif len(Dget) == 1:
             cv2.rectangle(image, (xy[0] , xy[1]), (xy[2] , xy[3]), (0, 255, 0), 2)
-    one = Dget[0]
+   
+    if( len(Dget) > 0):
+        one = Dget[0][0]
+    else:
+        return False, False
+    # cv2.imshow("Image", image)
+    # cv2.waitKey()
     return ( (one[0] + one[2]) * 0.5, (one[1] + one[3]) * 0.5), maxLoc
+    
+    
 
 def find_enemy(screenshot):
     pos, val = template_matching(screenshot, 'boss.png')
